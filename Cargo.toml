@@ -2,5 +2,3 @@
 name = "simple-http-server-rust"
 version = "0.1.0"
 edition = "2024"
-
-[dependencies]

@@ -1,6 +1,16 @@
-use std::{collections::HashMap, io::{BufRead, BufReader, Error, Lines, Write}, net::{TcpListener, TcpStream}};
-
 #[allow(dead_code)]
+use {
+    std::{
+        collections::HashMap, 
+        io::{BufRead, BufReader, Error, Lines, Write}, 
+        net::{TcpListener, TcpStream},
+        fs,
+        env
+    },
+};
+
+mod threadpool;
+
 #[derive(Default)]
 struct HttpRequest {
     method: String,
@@ -29,7 +39,6 @@ impl HttpRequest {
         let mut map: HashMap<String, String> = HashMap::new();
         for head in headers {
             let header = Ok::<String, Error>(head.unwrap()).unwrap();
-            print!("{} ", header);
             if !header.is_empty() {
                 let mut parts = header.split_whitespace();
                 map.insert(parts.next().unwrap().to_string().strip_suffix(":").unwrap().to_lowercase(), parts.next().unwrap().to_string());
@@ -37,19 +46,23 @@ impl HttpRequest {
                 break;
             } 
         }
-        //println!("{}", map.get("user-agent").expect("msg"));
+        println!("");
         map
     }
 }
 
 fn main() -> std::io::Result<()> {
+    println!("{}", env::current_dir().unwrap().to_str().unwrap());
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
-    
+    let thread_pool = threadpool::ThreadPool::new(200);
+            
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
                 print!("accepted new connection ");
-                handle_connection(stream);
+                thread_pool.execute(|| {
+                    handle_connection(stream);
+                });
             }
             Err(e) => {
                 println!("error: {}", e);
@@ -78,6 +91,18 @@ fn handle_connection(mut stream: TcpStream) {
                 .as_bytes()
             );
         },
+        target if target.starts_with("/files") => {
+            let file_path = target.strip_prefix("/files").unwrap();
+            if fs::exists(file_path).unwrap() {
+                println!("searching for file \"{}\"", file_path);
+                let file_body = fs::read(target).ok().unwrap();
+                println!("{}", String::from_utf8(file_body.clone()).unwrap());
+                let response_body = format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length:{}\r\n\r\n", file_body.len());
+                let _ = stream.write([response_body.as_bytes(), file_body.as_slice()].concat().as_slice());
+            } else {
+                let _ = stream.write(b"HTTP/1.1 404 NOT FOUND");
+            }
+        }
         _ => {
             target = target.strip_prefix("/").unwrap();
             if http_request.headers.contains_key(target) {
