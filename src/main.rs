@@ -83,7 +83,7 @@ fn handle_connection(mut stream: TcpStream) {
     match target {
         "/" => {
             let file_body = fs::read("/home/michael-lindsay/simple-http-server-rust/file.html").unwrap();
-            let response_body = format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length:{}\r\n\r\n", file_body.len());
+            let response_body = format!("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length:{}\r\n\r\n", file_body.len());
             let _ = stream.write([response_body.as_bytes(), file_body.as_slice()].concat().as_slice());
         }
         target if target.starts_with("/echo") => {
@@ -98,7 +98,10 @@ fn handle_connection(mut stream: TcpStream) {
             let file_path = format!("/home/michael-lindsay/simple-http-server-rust/{}", target.strip_prefix("/files/").unwrap());
             if fs::exists(file_path).unwrap() {
                 let file_body = fs::read(format!("/home/michael-lindsay/simple-http-server-rust/{}", target.strip_prefix("/files/").unwrap())).ok().unwrap();
-                let response_body = format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length:{}\r\n\r\n", file_body.len());
+                let response_body = match target {
+                    target if target.ends_with(".html") => format!("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length:{}\r\n\r\n", file_body.len()),
+                    _ => format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length:{}\r\n\r\n", file_body.len())
+                };
                 let _ = stream.write([response_body.as_bytes(), file_body.as_slice()].concat().as_slice());                
             } else {
                 let _ = stream.write(b"HTTP/1.1 404 NOT FOUND\r\n\r\n");
