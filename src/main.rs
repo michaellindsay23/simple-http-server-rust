@@ -1,3 +1,4 @@
+use {std::fs::read};
 #[allow(dead_code)]
 use {
     std::{
@@ -81,7 +82,9 @@ fn handle_connection(mut stream: TcpStream) {
     let mut target = http_request.target.as_str();
     match target {
         "/" => {
-            let _ = stream.write(b"HTTP/1.1 200 OK\r\n\r\n");
+            let file_body = fs::read("/home/michael-lindsay/simple-http-server-rust/file.html").unwrap();
+            let response_body = format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length:{}\r\n\r\n", file_body.len());
+            let _ = stream.write([response_body.as_bytes(), file_body.as_slice()].concat().as_slice());
         }
         target if target.starts_with("/echo") => {
             let mut echo_path = target.strip_prefix("/echo").unwrap();
@@ -92,15 +95,13 @@ fn handle_connection(mut stream: TcpStream) {
             );
         },
         target if target.starts_with("/files") => {
-            let file_path = target.strip_prefix("/files").unwrap();
+            let file_path = format!("/home/michael-lindsay/simple-http-server-rust/{}", target.strip_prefix("/files/").unwrap());
             if fs::exists(file_path).unwrap() {
-                println!("searching for file \"{}\"", file_path);
-                let file_body = fs::read(target).ok().unwrap();
-                println!("{}", String::from_utf8(file_body.clone()).unwrap());
+                let file_body = fs::read(format!("/home/michael-lindsay/simple-http-server-rust/{}", target.strip_prefix("/files/").unwrap())).ok().unwrap();
                 let response_body = format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length:{}\r\n\r\n", file_body.len());
-                let _ = stream.write([response_body.as_bytes(), file_body.as_slice()].concat().as_slice());
+                let _ = stream.write([response_body.as_bytes(), file_body.as_slice()].concat().as_slice());                
             } else {
-                let _ = stream.write(b"HTTP/1.1 404 NOT FOUND");
+                let _ = stream.write(b"HTTP/1.1 404 NOT FOUND\r\n\r\n");
             }
         }
         _ => {
@@ -111,7 +112,7 @@ fn handle_connection(mut stream: TcpStream) {
                     .as_bytes()
                 );
             } else {
-                let _ = stream.write(b"HTTP/1.1 404 NOT FOUND");
+                let _ = stream.write(b"HTTP/1.1 404 NOT FOUND\r\n\r\n");
             }
         }
     };
